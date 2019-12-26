@@ -21,11 +21,10 @@ let main argv =
        async { 
            let passThruHeader name = 
             match ctx |> getFirstHeader name with
-             | Some value -> (name, value)::ctx.response.headers |> ignore
-             | None -> ()  
+             | Some value -> (name, value)::ctx.response.headers 
+             | None -> []  
 
-           Headers.All |> Seq.iter passThruHeader
-           return Some ctx 
+           return Some {ctx with response = {ctx.response with headers = Headers.All |> List.collect passThruHeader}} 
         }
 
   let passThruStatusCode (message:int -> string) : WebPart =
@@ -43,7 +42,7 @@ let main argv =
     choose [
         GET >=> choose
             [ path "/healthz" >=> OK ""
-              path "/" >=> passThruHeaders >=> passThruStatusCode (sprintf "Your error code is %i. Check response headers for more details.") ]
+              path "/" >=> passThruHeaders >=> passThruStatusCode (sprintf "Your error code is <b>%i</b>. Check response headers for more details.") ]
     ]
   
   let listening, server = startWebServerAsync conf app
@@ -53,4 +52,4 @@ let main argv =
   Console.CancelKeyPress.Add(fun _ -> cts.Cancel())
   Async.AwaitEvent Console.CancelKeyPress |> Async.RunSynchronously |> ignore 
 
-  0 // return an integer exit code
+  0
