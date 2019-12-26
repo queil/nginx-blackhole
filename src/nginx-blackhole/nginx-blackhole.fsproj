@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="Headers.fs" />
+    <Compile Include="View.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
