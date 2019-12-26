@@ -2,10 +2,10 @@ FROM mcr.microsoft.com/dotnet/core/sdk:3.1 as build
 
 WORKDIR /app
 
-COPY ./*.fsproj ./
+COPY ./nginx-blackhole/*.fsproj ./
 RUN dotnet restore
 
-COPY ./* ./
+COPY ./nginx-blackhole/* ./
 RUN dotnet publish -c Release --no-restore --output /app/pkg
 
 FROM mcr.microsoft.com/dotnet/core/runtime:3.1 as runtime
