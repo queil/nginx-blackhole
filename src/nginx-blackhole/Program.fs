@@ -21,20 +21,21 @@ let main argv =
 
            Headers.All |> Seq.iter passThruHeader
            return Some ctx 
-        } 
+        }
+        
   let setStatusCodeFromXCodeHeader : WebPart =
     fun (ctx:HttpContext) -> 
         let newCode =  match ctx |> getFirstHeader Headers.CodeHeader with
                         | Some value -> Int32.Parse(value)
                         | None -> 404
-        { ctx with response = {ctx.response with status = {ctx.response.status with code = newCode }} } |> succeed   
+        { ctx with response = {ctx.response with status = {ctx.response.status with code = newCode }}} |> succeed   
 
   let app =
     choose [
         GET >=> choose
             [ path "/healthz" >=> OK ""
               path "/" >=> passThruHeaders >=> setStatusCodeFromXCodeHeader ]
-        ]
+    ]
   
   let listening, server = startWebServerAsync conf app
     
