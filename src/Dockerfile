@@ -12,4 +12,4 @@ FROM mcr.microsoft.com/dotnet/core/runtime:3.1 as runtime
 
 WORKDIR /app
 COPY --from=build /app/pkg ./
-ENTRYPOINT [ "blackhole" ]
+ENTRYPOINT [ "./blackhole" ]
