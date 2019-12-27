@@ -2,20 +2,42 @@
 open System.Threading
 open Suave
 open Suave.Filters
+open Suave.FunctionalViewEngine
 open Suave.Operators
 open Suave.Successful
 open Suave.Headers
 open System.Net
 open System.Text
+open Microsoft.Extensions.Configuration
+open System.Collections.Generic
+
+[<CLIMutable>]
+type AppSettings = {
+  bindIp: string
+  bindPort: uint16
+  links : List<Link>
+  
+} and [<CLIMutable>]Link = {
+  href: string
+  text: string
+}
 
 [<EntryPoint>]
 let main argv = 
+
+  let cfg = ConfigurationBuilder().AddJsonFile("appsettings.json", false)
+                                  .AddEnvironmentVariables("BLACKHOLE_").Build()
+                              
+  let settings = cfg.Get<AppSettings>()
+
   let cts = new CancellationTokenSource()
   let conf = { defaultConfig with 
                  cancellationToken = cts.Token
-                 bindings = [HttpBinding.create HTTP IPAddress.Any 8080us]
+                 bindings = [HttpBinding.create HTTP (IPAddress.Parse(settings.bindIp)) settings.bindPort]
              }
-   
+  
+  let links = if isNull settings.links then Seq.empty else settings.links |> Seq.map (fun f -> (f.text, f.href)) 
+
   let passThruHeaders : WebPart =
     fun (ctx:HttpContext) -> 
        async { 
@@ -27,14 +49,21 @@ let main argv =
            return Some {ctx with response = {ctx.response with headers = Headers.All |> List.collect passThruHeader}} 
         }
 
-  let passThruStatusCode (message:int -> string) : WebPart =
+  let passThruStatusCode : WebPart =
     fun (ctx:HttpContext) -> 
         let newCode =  match ctx |> getFirstHeader Headers.CodeHeader with
                         | Some value -> Int32.Parse(value)
                         | None -> 404
+        let headerFromCtx key = match getFirstHeader key ctx with | Some v -> Some (key, v) | None -> None 
+        
+        let originalHeaders =
+          Headers.All 
+          |> Seq.map headerFromCtx
+          |> Seq.choose id
+         
         { ctx with 
             response = { ctx.response with
-                          content = (View.page "Blackhole says" (message newCode) ) |> Encoding.UTF8.GetBytes |> Bytes
+                          content = renderXmlNode (View.page newCode originalHeaders links) |> Encoding.UTF8.GetBytes |> Bytes
                           status = {ctx.response.status with 
                                       code = newCode }}} |> succeed   
 
@@ -42,7 +71,7 @@ let main argv =
     choose [
         GET >=> choose
             [ path "/healthz" >=> OK ""
-              path "/" >=> passThruHeaders >=> passThruStatusCode (sprintf "Your error code is <b>%i</b>. Check response headers for more details.") ]
+              path "/" >=> passThruHeaders >=> passThruStatusCode ]
     ]
   
   let listening, server = startWebServerAsync conf app
