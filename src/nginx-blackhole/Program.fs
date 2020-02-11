@@ -1,4 +1,5 @@
-﻿open System
+﻿open k8s
+open System
 open System.Threading
 open Suave
 open Suave.Filters
@@ -38,6 +39,15 @@ let main argv =
   
   let links = if isNull settings.links then Seq.empty else settings.links |> Seq.map (fun f -> (f.text, f.href)) 
 
+  let config = KubernetesClientConfiguration.BuildDefaultConfig()
+  use k8s = new Kubernetes(config)
+  let ingresses = k8s.ListIngressForAllNamespaces1().Items 
+                    |> Seq.collect (fun x -> x.Spec.Rules) 
+                    |> Seq.map (fun r -> 
+                      ( r.Host, sprintf "https://%s" r.Host ))
+
+  let allLinks = ingresses |> Seq.append links
+
   let passThruHeaders : WebPart =
     fun (ctx:HttpContext) -> 
        async { 
@@ -63,10 +73,9 @@ let main argv =
          
         { ctx with 
             response = { ctx.response with
-                          content = renderXmlNode (View.page newCode originalHeaders links) |> Encoding.UTF8.GetBytes |> Bytes
+                          content = renderXmlNode (View.page newCode originalHeaders allLinks) |> Encoding.UTF8.GetBytes |> Bytes
                           status = {ctx.response.status with 
                                       code = newCode }}} |> succeed   
-
   let app =
     choose [
         GET >=> choose
